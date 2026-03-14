@@ -1,0 +1,198 @@
+*gramaculate.txt*  AI-powered grammar checker for markdown files
+
+==============================================================================
+CONTENTS                                                  *gramaculate-contents*
+
+  1. Introduction ......................... |gramaculate-introduction|
+  2. Requirements ......................... |gramaculate-requirements|
+  3. Installation ......................... |gramaculate-installation|
+  4. Usage ................................ |gramaculate-usage|
+  5. Configuration ........................ |gramaculate-configuration|
+  6. Fix Window ........................... |gramaculate-fix-window|
+  7. Remote Models ........................ |gramaculate-remote-models|
+     7.1 OpenAI ........................... |gramaculate-openai|
+     7.2 Claude (Anthropic) ............... |gramaculate-claude|
+     7.3 Grok (xAI) ....................... |gramaculate-grok|
+     7.4 Perplexity ....................... |gramaculate-perplexity|
+     7.5 Local (Ollama) ................... |gramaculate-ollama|
+  8. Development & Tests .................. |gramaculate-tests|
+
+==============================================================================
+1. INTRODUCTION                                       *gramaculate-introduction*
+
+Gramaculate is an asynchronous grammar and spelling checker for markdown
+files. It sends the current buffer to a language model and presents the
+suggested fixes in an interactive split window.
+
+Both OpenAI-compatible APIs and the Anthropic (Claude) API are supported.
+The correct request format is detected automatically from |g:gramaculate_url|.
+
+==============================================================================
+2. REQUIREMENTS                                       *gramaculate-requirements*
+
+  - Vim 8.0+ (compiled with |job| support)
+  - curl
+  - An API endpoint: local (Ollama) or remote (OpenAI, Claude, Grok, etc.)
+
+==============================================================================
+3. INSTALLATION                                       *gramaculate-installation*
+
+With vim-plug: >
+  Plug '~/path/to/vim-gramaculate'
+<
+Or with Vim's native package manager: >
+  mkdir -p ~/.vim/pack/plugins/start/
+  ln -s ~/path/to/vim-gramaculate ~/.vim/pack/plugins/start/vim-gramaculate
+<
+After installation, generate the help tags: >
+  :helptags ALL
+<
+==============================================================================
+4. USAGE                                                     *gramaculate-usage*
+
+                                                               *:Gramaculate*
+:Gramaculate
+  Check the current buffer for grammar and spelling errors. Opens a small
+  status split showing "Checking..." while the request is in flight. Once
+  complete, the split is populated with a list of proposed fixes.
+
+  Only one check can run at a time. Running :Gramaculate while a check is
+  already in progress will print a warning.
+
+==============================================================================
+5. CONFIGURATION                                     *gramaculate-configuration*
+
+All options can be set in your |vimrc|.
+
+                                                        *g:gramaculate_model*
+g:gramaculate_model~
+  The model to use for grammar checking.
+  Default: 'qwen3:4b' >
+    let g:gramaculate_model = 'qwen3:4b'
+<
+                                                          *g:gramaculate_url*
+g:gramaculate_url~
+  The API endpoint URL. If the URL contains 'anthropic.com' the plugin
+  automatically uses the Anthropic request format. All other URLs are treated
+  as OpenAI-compatible.
+  Default: 'http://localhost:11434/v1/chat/completions' >
+    let g:gramaculate_url = 'http://localhost:11434/v1/chat/completions'
+<
+                                                  *g:gramaculate_map_apply*
+g:gramaculate_map_apply~
+  Key mapping used to apply the fix under the cursor in the source buffer.
+  Set to an empty string to disable the mapping entirely.
+  Default: '<leader>cg' >
+    let g:gramaculate_map_apply = '<leader>cg'
+<
+                                                      *g:gramaculate_api_key*
+g:gramaculate_api_key~
+  API key for authenticating with remote services. Leave empty for local
+  models that require no authentication (e.g. Ollama).
+
+  For OpenAI-compatible endpoints this is sent as a Bearer token: >
+    Authorization: Bearer <key>
+<
+  For Anthropic endpoints this is sent as: >
+    x-api-key: <key>
+<
+  Default: '' >
+    let g:gramaculate_api_key = 'your-api-key-here'
+<
+==============================================================================
+6. FIX WINDOW                                           *gramaculate-fix-window*
+
+When fixes are found, the status split is converted into a fix window listing
+each proposed change in the format: >
+  N) Line L: "original" -> "fix"  [reason]
+<
+The following keymaps are active in the fix window:
+
+  <Enter>       Apply the fix on the current line and remove it from the list.
+                When the last fix is applied the window closes automatically.
+  q             Cancel the in-flight request (during checking), or close the
+                fix window.
+
+The following keymap is added to the source buffer while fixes are active:
+
+  <leader>cg    Apply the fix under the cursor directly in the source buffer.
+                The cursor must be positioned on a highlighted error.
+                The fix window (if open) is updated automatically.
+                The mapping is removed when all fixes are applied or the fix
+                window is closed.
+
+==============================================================================
+7. REMOTE MODELS                                     *gramaculate-remote-models*
+
+Set |g:gramaculate_url|, |g:gramaculate_model|, and |g:gramaculate_api_key|
+in your |vimrc| to use a remote provider.
+
+------------------------------------------------------------------------------
+7.1 OpenAI                                                  *gramaculate-openai*
+>
+  let g:gramaculate_url     = 'https://api.openai.com/v1/chat/completions'
+  let g:gramaculate_model   = 'gpt-4o'
+  let g:gramaculate_api_key = 'sk-...'
+<
+------------------------------------------------------------------------------
+7.2 Claude (Anthropic)                                      *gramaculate-claude*
+
+The Anthropic API uses a different request and response format to OpenAI.
+Gramaculate detects this automatically when 'anthropic.com' appears in
+|g:gramaculate_url| and switches to:
+
+  - A top-level `system` field instead of a system role message
+  - `x-api-key` and `anthropic-version` headers instead of `Authorization`
+  - Response parsing from `content[0].text` instead of
+    `choices[0].message.content`
+>
+  let g:gramaculate_url     = 'https://api.anthropic.com/v1/messages'
+  let g:gramaculate_model   = 'claude-sonnet-4-6'
+  let g:gramaculate_api_key = 'sk-ant-...'
+<
+------------------------------------------------------------------------------
+7.3 Grok (xAI)                                               *gramaculate-grok*
+>
+  let g:gramaculate_url     = 'https://api.x.ai/v1/chat/completions'
+  let g:gramaculate_model   = 'grok-3'
+  let g:gramaculate_api_key = 'xai-...'
+<
+------------------------------------------------------------------------------
+7.4 Perplexity                                         *gramaculate-perplexity*
+>
+  let g:gramaculate_url     = 'https://api.perplexity.ai/chat/completions'
+  let g:gramaculate_model   = 'sonar'
+  let g:gramaculate_api_key = 'pplx-...'
+<
+------------------------------------------------------------------------------
+7.5 Local (Ollama)                                          *gramaculate-ollama*
+
+No API key is required. Ensure Ollama is running and the model is pulled: >
+  ollama pull qwen3:4b
+<
+  let g:gramaculate_url   = 'http://localhost:11434/v1/chat/completions'
+  let g:gramaculate_model = 'qwen3:4b'
+<
+==============================================================================
+8. DEVELOPMENT & TESTS                                      *gramaculate-tests*
+
+Tests are written using vader.vim (https://github.com/junegunn/vader.vim).
+
+Install vader.vim: >
+  Plug 'junegunn/vader.vim'
+<
+Run the test suite: >
+  make test
+<
+Or from inside Vim: >
+  :Vader test/gramaculate.vader
+<
+The tests cover:
+
+  - Claude endpoint detection (various URLs)
+  - Content cleaning (think tag stripping, code fence stripping, whitespace)
+  - Fix application to buffer lines (including special characters)
+  - Double-run guard
+
+==============================================================================
+vim:tw=78:ts=8:ft=help:norl:

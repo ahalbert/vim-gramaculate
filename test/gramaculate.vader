@@ -1,0 +1,124 @@
+" gramaculate.vader - Tests for vim-gramaculate
+" Run with: vader test/gramaculate.vader
+
+" ============================================================
+" Helpers
+" ============================================================
+
+Before:
+  " Reset plugin config to defaults before each test
+  let g:gramaculate_model   = 'qwen3:4b'
+  let g:gramaculate_url     = 'http://localhost:11434/v1/chat/completions'
+  let g:gramaculate_api_key = ''
+
+" ============================================================
+" Endpoint detection
+" ============================================================
+
+Execute (detects Anthropic endpoint):
+  let g:gramaculate_url = 'https://api.anthropic.com/v1/messages'
+  AssertEqual 1, gramaculate#_is_claude_endpoint()
+
+Execute (detects Anthropic endpoint with subdomain):
+  let g:gramaculate_url = 'https://api.eu.anthropic.com/v1/messages'
+  AssertEqual 1, gramaculate#_is_claude_endpoint()
+
+Execute (does not flag OpenAI as Claude):
+  let g:gramaculate_url = 'https://api.openai.com/v1/chat/completions'
+  AssertEqual 0, gramaculate#_is_claude_endpoint()
+
+Execute (does not flag Ollama as Claude):
+  let g:gramaculate_url = 'http://localhost:11434/v1/chat/completions'
+  AssertEqual 0, gramaculate#_is_claude_endpoint()
+
+Execute (does not flag Grok as Claude):
+  let g:gramaculate_url = 'https://api.x.ai/v1/chat/completions'
+  AssertEqual 0, gramaculate#_is_claude_endpoint()
+
+Execute (does not flag Perplexity as Claude):
+  let g:gramaculate_url = 'https://api.perplexity.ai/chat/completions'
+  AssertEqual 0, gramaculate#_is_claude_endpoint()
+
+" ============================================================
+" Content cleaning
+" ============================================================
+
+Execute (strips think tags):
+  let result = gramaculate#_clean_content("<think>some reasoning</think>[{\"line\":1}]")
+  AssertEqual '[{"line":1}]', result
+
+Execute (strips multiline think tags):
+  let input = "<think>\nreasoning\nacross\nlines\n</think>\n[]"
+  AssertEqual '[]', gramaculate#_clean_content(input)
+
+Execute (strips json code fence):
+  let result = gramaculate#_clean_content("```json\n[]\n```")
+  AssertEqual '[]', result
+
+Execute (strips plain code fence):
+  let result = gramaculate#_clean_content("```\n[]\n```")
+  AssertEqual '[]', result
+
+Execute (trims surrounding whitespace):
+  let result = gramaculate#_clean_content("   []\n\n")
+  AssertEqual '[]', result
+
+Execute (leaves clean content untouched):
+  let result = gramaculate#_clean_content('[{"line":1,"original":"teh","fix":"the","reason":"typo"}]')
+  AssertEqual '[{"line":1,"original":"teh","fix":"the","reason":"typo"}]', result
+
+Execute (strips think tags and code fence together):
+  let input = "<think>thinking</think>\n```json\n[]\n```"
+  AssertEqual '[]', gramaculate#_clean_content(input)
+
+" ============================================================
+" Fix application
+" ============================================================
+
+Execute (applies a simple fix):
+  let result = gramaculate#_apply_fix_to_line('She went to there house.', 'there', 'their')
+  AssertEqual 'She went to their house.', result
+
+Execute (applies fix with apostrophe):
+  let result = gramaculate#_apply_fix_to_line("It's going to there.", "there", "work")
+  AssertEqual "It's going to work.", result
+
+Execute (applies fix with special regex characters in original):
+  let result = gramaculate#_apply_fix_to_line('Price is $10.00 dollars.', '$10.00', '$10')
+  AssertEqual 'Price is $10 dollars.', result
+
+Execute (applies fix at start of line):
+  let result = gramaculate#_apply_fix_to_line('teh cat sat.', 'teh', 'The')
+  AssertEqual 'The cat sat.', result
+
+Execute (applies fix at end of line):
+  let result = gramaculate#_apply_fix_to_line('She is very efficiant', 'efficiant', 'efficient')
+  AssertEqual 'She is very efficient', result
+
+Execute (does not change line when original not found):
+  let result = gramaculate#_apply_fix_to_line('Hello world.', 'xyz', 'abc')
+  AssertEqual 'Hello world.', result
+
+" ============================================================
+" Line numbering
+" ============================================================
+
+Execute (numbers lines from 1 for whole-file check):
+  let result = gramaculate#_number_lines(['Hello world.', 'Teh cat sat.'], 1)
+  AssertEqual "1: Hello world.\n2: Teh cat sat.", result
+
+Execute (numbers lines from correct offset for range check):
+  let result = gramaculate#_number_lines(['Third line.', 'Fourth line.'], 3)
+  AssertEqual "3: Third line.\n4: Fourth line.", result
+
+Execute (single line range):
+  let result = gramaculate#_number_lines(['Only line.'], 7)
+  AssertEqual '7: Only line.', result
+
+Execute (preserves empty lines):
+  let result = gramaculate#_number_lines(['First.', '', 'Third.'], 1)
+  AssertEqual "1: First.\n2: \n3: Third.", result
+
+Execute (preserves leading whitespace in lines):
+  let result = gramaculate#_number_lines(['  indented'], 1)
+  AssertEqual '1:   indented', result
