@@ -10,4 +10,4 @@ let g:gramaculate_map_apply = get(g:, 'gramaculate_map_apply', '<leader>cg')
 
 command! -range=% Gramaculate call gramaculate#Check(<line1>, <line2>)
 
-highlight default GramaculateError ctermfg=White guifg=White ctermbg=Blue guibg=LightBlue
+highlight default GramaculateError gui=undercurl guisp=Red cterm=underline ctermfg=Red

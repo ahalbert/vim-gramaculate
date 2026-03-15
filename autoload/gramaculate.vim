@@ -323,6 +323,25 @@ function! gramaculate#_apply_fix_to_line(line, original, fix)
   return substitute(a:line, '\V' . escape(a:original, '\'), a:fix, '')
 endfunction
 
+" Return [byte_offset, byte_length] of the changed portion within a:original.
+" Strips common prefix and suffix so the highlight covers only what differs.
+" Public for testing
+function! gramaculate#_changed_span(original, fix)
+  let l:olen = len(a:original)
+  let l:flen = len(a:fix)
+  let l:pre  = 0
+  while l:pre < l:olen && l:pre < l:flen && a:original[l:pre] ==# a:fix[l:pre]
+    let l:pre += 1
+  endwhile
+  let l:suf = 0
+  while l:suf < (l:olen - l:pre) && l:suf < (l:flen - l:pre)
+    \ && a:original[l:olen - 1 - l:suf] ==# a:fix[l:flen - 1 - l:suf]
+    let l:suf += 1
+  endwhile
+  let l:hlen = l:olen - l:pre - l:suf
+  return [l:pre, l:hlen > 0 ? l:hlen : l:olen]
+endfunction
+
 function! s:AddHighlights(source_bufnr, fixes)
   call s:ClearHighlights()
   let l:win = bufwinid(a:source_bufnr)
@@ -338,8 +357,9 @@ function! s:AddHighlights(source_bufnr, fixes)
     if l:col <= 0
       continue
     endif
+    let [l:offset, l:hlen] = gramaculate#_changed_span(l:fix.original, l:fix.fix)
     let l:id = matchaddpos('GramaculateError',
-      \ [[l:fix.line, l:col, len(l:fix.original)]],
+      \ [[l:fix.line, l:col + l:offset, l:hlen]],
       \ 10, -1, {'window': l:win})
     call add(s:match_ids, [l:id, l:win])
   endfor
