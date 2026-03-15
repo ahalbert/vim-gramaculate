@@ -14,7 +14,8 @@ CONTENTS                                                  *gramaculate-contents*
      7.2 Claude (Anthropic) ............... |gramaculate-claude|
      7.3 Grok (xAI) ....................... |gramaculate-grok|
      7.4 Perplexity ....................... |gramaculate-perplexity|
-     7.5 Local (Ollama) ................... |gramaculate-ollama|
+     7.5 Amazon Bedrock ................... |gramaculate-bedrock|
+     7.6 Local (Ollama) ................... |gramaculate-ollama|
   8. Development & Tests .................. |gramaculate-tests|
 
 ==============================================================================
@@ -24,15 +25,17 @@ Gramaculate is an asynchronous grammar and spelling checker for markdown
 files. It sends the current buffer to a language model and presents the
 suggested fixes in an interactive split window.
 
-Both OpenAI-compatible APIs and the Anthropic (Claude) API are supported.
-The correct request format is detected automatically from |g:gramaculate_url|.
+OpenAI-compatible APIs, the Anthropic (Claude) API, and Amazon Bedrock are
+supported. The correct request format is detected automatically from
+|g:gramaculate_url|.
 
 ==============================================================================
 2. REQUIREMENTS                                       *gramaculate-requirements*
 
   - Vim 8.0+ (compiled with |job| support)
-  - curl
-  - An API endpoint: local (Ollama) or remote (OpenAI, Claude, Grok, etc.)
+  - curl (all providers except Amazon Bedrock)
+  - aws CLI, configured with credentials (Amazon Bedrock only)
+  - An API endpoint: local (Ollama) or remote (OpenAI, Claude, Bedrock, etc.)
 
 ==============================================================================
 3. INSTALLATION                                       *gramaculate-installation*
@@ -72,9 +75,13 @@ g:gramaculate_model~
 <
                                                           *g:gramaculate_url*
 g:gramaculate_url~
-  The API endpoint URL. If the URL contains 'anthropic.com' the plugin
-  automatically uses the Anthropic request format. All other URLs are treated
-  as OpenAI-compatible.
+  The API endpoint URL. The plugin detects the provider from this value:
+
+    - Contains 'anthropic.com'              → Anthropic request format
+    - Contains 'bedrock-runtime.amazonaws.com' → Amazon Bedrock (uses aws CLI;
+                                                region extracted from URL)
+    - Anything else                         → OpenAI-compatible
+
   Default: 'http://localhost:11434/v1/chat/completions' >
     let g:gramaculate_url = 'http://localhost:11434/v1/chat/completions'
 <
@@ -165,7 +172,19 @@ Gramaculate detects this automatically when 'anthropic.com' appears in
   let g:gramaculate_api_key = 'pplx-...'
 <
 ------------------------------------------------------------------------------
-7.5 Local (Ollama)                                          *gramaculate-ollama*
+7.5 Amazon Bedrock                                         *gramaculate-bedrock*
+
+Gramaculate detects the Bedrock endpoint from |g:gramaculate_url| and uses the
+`aws` CLI instead of curl. The AWS region is extracted from the URL
+automatically. AWS credentials are read from the environment or
+`~/.aws/credentials` — no |g:gramaculate_api_key| is needed.
+
+Bedrock model IDs follow the pattern `<provider>.<model-id>-v<N>:<N>`: >
+  let g:gramaculate_url   = 'https://bedrock-runtime.us-east-1.amazonaws.com'
+  let g:gramaculate_model = 'anthropic.claude-haiku-4-5-20251001-v1:0'
+<
+------------------------------------------------------------------------------
+7.6 Local (Ollama)                                          *gramaculate-ollama*
 
 No API key is required. Ensure Ollama is running and the model is pulled: >
   ollama pull qwen3:4b
@@ -189,7 +208,7 @@ Or from inside Vim: >
 <
 The tests cover:
 
-  - Claude endpoint detection (various URLs)
+  - Claude and Bedrock endpoint detection (various URLs)
   - Content cleaning (think tag stripping, code fence stripping, whitespace)
   - Fix application to buffer lines (including special characters)
   - Double-run guard

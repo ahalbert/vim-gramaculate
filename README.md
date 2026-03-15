@@ -30,6 +30,18 @@ let g:gramaculate_model     = 'claude-haiku-4-5-20251001'
 let g:gramaculate_api_key   = 'YOUR-API-KEY'
 ```
 
+### Amazon Bedrock
+
+Set `g:gramaculate_url` to your Bedrock endpoint and `g:gramaculate_model` to
+the Bedrock model ID. The region is extracted from the URL automatically.
+AWS credentials are read from the environment or `~/.aws/credentials` via the
+`aws` CLI, which must be installed and configured.
+
+```vimscript
+let g:gramaculate_url   = 'https://bedrock-runtime.us-east-1.amazonaws.com'
+let g:gramaculate_model = 'anthropic.claude-haiku-4-5-20251001-v1:0'
+```
+
 ## Check Grammar
 
 Use `:Gramaculate` to check the grammar of an entire markdown file.

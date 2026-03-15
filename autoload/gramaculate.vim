@@ -11,20 +11,30 @@ let s:system_prompt =
   \ 'If there are no errors return an empty array: []'
 
 " Script-local state for the async job
-let s:job            = v:null
-let s:chunks         = []
-let s:source_bufnr   = -1
-let s:status_bufnr   = -1
-let s:match_ids      = []
-let s:current_fixes  = []
+let s:job              = v:null
+let s:chunks           = []
+let s:source_bufnr     = -1
+let s:status_bufnr     = -1
+let s:match_ids        = []
+let s:current_fixes    = []
+let s:bedrock_tmpfile  = ''
 
 function! s:IsClaudeEndpoint()
   return gramaculate#_is_claude_endpoint()
 endfunction
 
+function! s:IsBedrockEndpoint()
+  return gramaculate#_is_bedrock_endpoint()
+endfunction
+
 " Public for testing
 function! gramaculate#_is_claude_endpoint()
   return g:gramaculate_url =~# 'anthropic\.com'
+endfunction
+
+" Public for testing
+function! gramaculate#_is_bedrock_endpoint()
+  return g:gramaculate_url =~# 'bedrock-runtime\.amazonaws\.com'
 endfunction
 
 function! gramaculate#Check(line1, line2)
@@ -39,7 +49,16 @@ function! gramaculate#Check(line1, line2)
 
   let l:content = gramaculate#_number_lines(getline(a:line1, a:line2), a:line1)
 
-  if s:IsClaudeEndpoint()
+  if s:IsBedrockEndpoint()
+    let l:payload = json_encode({
+      \ 'anthropic_version': 'bedrock-2023-05-31',
+      \ 'max_tokens': 4096,
+      \ 'system':     s:system_prompt,
+      \ 'messages': [
+      \   {'role': 'user', 'content': l:content}
+      \ ]
+    \ })
+  elseif s:IsClaudeEndpoint()
     let l:payload = json_encode({
       \ 'model':      g:gramaculate_model,
       \ 'max_tokens': 4096,
@@ -60,17 +79,30 @@ function! gramaculate#Check(line1, line2)
 
   call s:OpenStatusWindow()
 
-  let l:cmd = ['curl', '-s', '-X', 'POST', g:gramaculate_url,
-    \ '-H', 'Content-Type: application/json',
-    \ '-d', l:payload]
-
-  if s:IsClaudeEndpoint()
-    call extend(l:cmd, ['-H', 'anthropic-version: 2023-06-01'])
-    if !empty(g:gramaculate_api_key)
-      call extend(l:cmd, ['-H', 'x-api-key: ' . g:gramaculate_api_key])
+  if s:IsBedrockEndpoint()
+    let s:bedrock_tmpfile = tempname()
+    let l:region = matchstr(g:gramaculate_url,
+      \ 'bedrock-runtime\.\zs[^.]\+\ze\.amazonaws\.com')
+    let l:cmd = ['aws']
+    if !empty(l:region)
+      call extend(l:cmd, ['--region', l:region])
     endif
-  elseif !empty(g:gramaculate_api_key)
-    call extend(l:cmd, ['-H', 'Authorization: Bearer ' . g:gramaculate_api_key])
+    call extend(l:cmd, ['bedrock-runtime', 'invoke-model',
+      \ '--model-id', g:gramaculate_model,
+      \ '--body', l:payload,
+      \ s:bedrock_tmpfile])
+  else
+    let l:cmd = ['curl', '-s', '-X', 'POST', g:gramaculate_url,
+      \ '-H', 'Content-Type: application/json',
+      \ '-d', l:payload]
+    if s:IsClaudeEndpoint()
+      call extend(l:cmd, ['-H', 'anthropic-version: 2023-06-01'])
+      if !empty(g:gramaculate_api_key)
+        call extend(l:cmd, ['-H', 'x-api-key: ' . g:gramaculate_api_key])
+      endif
+    elseif !empty(g:gramaculate_api_key)
+      call extend(l:cmd, ['-H', 'Authorization: Bearer ' . g:gramaculate_api_key])
+    endif
   endif
 
   let s:job = job_start(
@@ -116,12 +148,23 @@ function! s:OnExit(job, status)
 
   if a:status != 0
     call s:Finish()
-    echoerr 'Gramaculate: curl exited with status ' . a:status
+    echoerr 'Gramaculate: command exited with status ' . a:status
     return
   endif
 
-  let l:response = join(s:chunks, '')
-  let s:chunks   = []
+  if s:IsBedrockEndpoint()
+    if !filereadable(s:bedrock_tmpfile)
+      call s:Finish()
+      echoerr 'Gramaculate: Bedrock response file not found'
+      return
+    endif
+    let l:response = join(readfile(s:bedrock_tmpfile), '')
+    call delete(s:bedrock_tmpfile)
+    let s:bedrock_tmpfile = ''
+  else
+    let l:response = join(s:chunks, '')
+  endif
+  let s:chunks = []
 
   try
     let l:data = json_decode(l:response)
@@ -131,7 +174,7 @@ function! s:OnExit(job, status)
     return
   endtry
 
-  let l:content = s:IsClaudeEndpoint()
+  let l:content = (s:IsClaudeEndpoint() || s:IsBedrockEndpoint())
     \ ? l:data.content[0].text
     \ : l:data.choices[0].message.content
 
@@ -350,4 +393,8 @@ function! s:Finish()
     execute 'bwipeout' s:status_bufnr
   endif
   let s:status_bufnr = -1
+  if !empty(s:bedrock_tmpfile)
+    call delete(s:bedrock_tmpfile)
+    let s:bedrock_tmpfile = ''
+  endif
 endfunction
