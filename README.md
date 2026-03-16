@@ -1,7 +1,7 @@
 # vim-gramaculate
 
 Vim grammar checker for markdown files, powered by AI. Supports any OpenAI API
-compatible model, local, remote and Claude.
+compatible model, local, remote, Claude and AWS Bedrock.
 
 ![demo](demo/demo.gif)
 
@@ -33,9 +33,9 @@ let g:gramaculate_api_key   = 'YOUR-API-KEY'
 ### Amazon Bedrock
 
 Set `g:gramaculate_url` to your Bedrock endpoint and `g:gramaculate_model` to
-the Bedrock model ID. The region is extracted from the URL automatically.
-AWS credentials are read from the environment or `~/.aws/credentials` via the
-`aws` CLI, which must be installed and configured.
+the Bedrock model ID. The region is extracted from the URL automatically. AWS
+credentials are read from the environment or `~/.aws/credentials` via the `aws`
+CLI, which must be installed and configured.
 
 ```vimscript
 let g:gramaculate_url   = 'https://bedrock-runtime.us-east-1.amazonaws.com'

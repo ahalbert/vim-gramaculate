@@ -122,3 +122,22 @@ Execute (preserves empty lines):
 Execute (preserves leading whitespace in lines):
   let result = gramaculate#_number_lines(['  indented'], 1)
   AssertEqual '1:   indented', result
+
+" ============================================================
+" Changed span
+" ============================================================
+
+Execute (changed span: single word substitution):
+  AssertEqual [0, 3], gramaculate#_changed_span('are', 'is')
+
+Execute (changed span: strips common prefix and suffix):
+  AssertEqual [5, 3], gramaculate#_changed_span('This are a', 'This is a')
+
+Execute (changed span: pure insertion highlights last word):
+  AssertEqual [6, 6], gramaculate#_changed_span('add a period', 'add a period.')
+
+Execute (changed span: pure insertion real sentence highlights last word):
+  AssertEqual [69, 6], gramaculate#_changed_span('The pod people live only a few years, consuming all of the life on a planet', 'The pod people live only a few years, consuming all of the life on a planet.')
+
+Execute (changed span: pure insertion with no spaces highlights whole string):
+  AssertEqual [0, 5], gramaculate#_changed_span('hello', 'hello.')

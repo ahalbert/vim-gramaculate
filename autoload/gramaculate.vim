@@ -339,7 +339,11 @@ function! gramaculate#_changed_span(original, fix)
     let l:suf += 1
   endwhile
   let l:hlen = l:olen - l:pre - l:suf
-  return [l:pre, l:hlen > 0 ? l:hlen : l:olen]
+  if l:hlen > 0
+    return [l:pre, l:hlen]
+  endif
+  let l:last_space = strridx(a:original, ' ')
+  return l:last_space >= 0 ? [l:last_space + 1, l:olen - l:last_space - 1] : [0, l:olen]
 endfunction
 
 function! s:AddHighlights(source_bufnr, fixes)
