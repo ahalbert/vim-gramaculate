@@ -84,6 +84,9 @@ function! gramaculate#Check(line1, line2)
     let l:region = matchstr(g:gramaculate_url,
       \ 'bedrock-runtime\.\zs[^.]\+\ze\.amazonaws\.com')
     let l:cmd = ['aws']
+    if !empty(g:gramaculate_aws_profile)
+      call extend(l:cmd, ['--profile', g:gramaculate_aws_profile])
+    endif
     if !empty(l:region)
       call extend(l:cmd, ['--region', l:region])
     endif

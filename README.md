@@ -38,8 +38,9 @@ credentials are read from the environment or `~/.aws/credentials` via the `aws`
 CLI, which must be installed and configured.
 
 ```vimscript
-let g:gramaculate_url   = 'https://bedrock-runtime.us-east-1.amazonaws.com'
-let g:gramaculate_model = 'anthropic.claude-haiku-4-5-20251001-v1:0'
+let g:gramaculate_url         = 'https://bedrock-runtime.us-east-1.amazonaws.com'
+let g:gramaculate_model       = 'anthropic.claude-haiku-4-5-20251001-v1:0'
+let g:gramaculate_aws_profile = 'my-profile'  " optional, defaults to AWS default profile
 ```
 
 ## Check Grammar
@@ -58,7 +59,8 @@ window to close it and clear the highlights.
 | `g:gramaculate_model`     | `qwen3:4b`                                   | Model name                                      |
 | `g:gramaculate_url`       | `http://localhost:11434/v1/chat/completions` | API endpoint                                    |
 | `g:gramaculate_api_key`   | `''`                                         | API key                                         |
-| `g:gramaculate_map_apply` | `<leader>cg`                                 | Mapping to apply fix at cursor in source buffer |
+| `g:gramaculate_map_apply`   | `<leader>cg`                                 | Mapping to apply fix at cursor in source buffer |
+| `g:gramaculate_aws_profile` | `''`                                         | AWS CLI profile for Bedrock (default profile if empty) |
 
 ## Alternatives
 

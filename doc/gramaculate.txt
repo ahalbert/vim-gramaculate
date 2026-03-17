@@ -92,6 +92,14 @@ g:gramaculate_map_apply~
   Default: '<leader>cg' >
     let g:gramaculate_map_apply = '<leader>cg'
 <
+                                                *g:gramaculate_aws_profile*
+g:gramaculate_aws_profile~
+  AWS CLI profile to use for Amazon Bedrock requests. When empty, the AWS
+  default profile is used (respecting the AWS_PROFILE environment variable).
+  Has no effect for non-Bedrock endpoints.
+  Default: '' >
+    let g:gramaculate_aws_profile = 'my-profile'
+<
                                                       *g:gramaculate_api_key*
 g:gramaculate_api_key~
   API key for authenticating with remote services. Leave empty for local
