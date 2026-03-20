@@ -99,6 +99,14 @@ Execute (does not change line when original not found):
   let result = gramaculate#_apply_fix_to_line('Hello world.', 'xyz', 'abc')
   AssertEqual 'Hello world.', result
 
+Execute (applies multi-line fix):
+  let result = gramaculate#_apply_fix_to_line("The quick brown\nfox jumps", "quick brown\nfox", "slow red\ncat")
+  AssertEqual "The slow red\ncat jumps", result
+
+Execute (applies multi-line fix spanning blank line):
+  let result = gramaculate#_apply_fix_to_line("end of paragraph\n\nstart of next", "paragraph\n\nstart", "paragraph.\n\nStart")
+  AssertEqual "end of paragraph.\n\nStart of next", result
+
 " ============================================================
 " Line numbering
 " ============================================================

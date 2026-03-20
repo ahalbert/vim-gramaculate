@@ -264,8 +264,17 @@ function! s:ApplyFix()
   let l:fix = b:gramaculate_fixes[l:idx]
   let l:src = b:gramaculate_source_buf
 
-  let l:target = getbufline(l:src, l:fix.line)[0]
-  call setbufline(l:src, l:fix.line, gramaculate#_apply_fix_to_line(l:target, l:fix.original, l:fix.fix))
+  let l:orig_lines = split(l:fix.original, "\n", 1)
+  let l:num_lines = len(l:orig_lines)
+  let l:end_line = l:fix.line + l:num_lines - 1
+
+  let l:target = join(getbufline(l:src, l:fix.line, l:end_line), "\n")
+  let l:result = gramaculate#_apply_fix_to_line(l:target, l:fix.original, l:fix.fix)
+  let l:new_lines = split(l:result, "\n", 1)
+
+  call deletebufline(l:src, l:fix.line, l:end_line)
+  call appendbufline(l:src, l:fix.line - 1, l:new_lines)
+
   call remove(s:current_fixes, l:idx)
   call s:PostApply(l:src)
 
@@ -285,19 +294,53 @@ function! gramaculate#ApplyFixAtCursor()
   let l:col  = col('.')
 
   for l:i in range(len(s:current_fixes))
-    let l:fix      = s:current_fixes[l:i]
-    if l:fix.line != l:line
+    let l:fix       = s:current_fixes[l:i]
+    let l:orig_lines = split(l:fix.original, "\n", 1)
+    let l:num_lines  = len(l:orig_lines)
+    let l:end_line   = l:fix.line + l:num_lines - 1
+
+    " Check if cursor is within the fix's line range
+    if l:line < l:fix.line || l:line > l:end_line
       continue
     endif
-    let l:fix_col  = stridx(getline(l:line), l:fix.original) + 1
-    let l:fix_end  = l:fix_col + len(l:fix.original) - 1
-    if l:col >= l:fix_col && l:col <= l:fix_end
-      let l:new = gramaculate#_apply_fix_to_line(getline(l:line), l:fix.original, l:fix.fix)
-      call setline(l:line, l:new)
-      call remove(s:current_fixes, l:i)
-      call s:PostApply(s:source_bufnr)
-      return
+
+    " For single-line fixes, check column position exactly
+    if l:num_lines == 1
+      let l:fix_col = stridx(getline(l:line), l:fix.original) + 1
+      let l:fix_end = l:fix_col + len(l:fix.original) - 1
+      if l:col < l:fix_col || l:col > l:fix_end
+        continue
+      endif
+    else
+      " For multi-line, check column bounds on first and last line
+      if l:line == l:fix.line
+        let l:fix_col = stridx(getline(l:line), l:orig_lines[0]) + 1
+        if l:fix_col <= 0 || l:col < l:fix_col
+          continue
+        endif
+      elseif l:line == l:end_line
+        let l:part    = l:orig_lines[-1]
+        let l:fix_col = stridx(getline(l:line), l:part) + 1
+        let l:fix_end = l:fix_col + len(l:part) - 1
+        if l:fix_col <= 0 || l:col > l:fix_end
+          continue
+        endif
+      endif
+      " Cursor on a middle line is always within range
     endif
+
+    " Apply the fix (works for both single and multi-line)
+    let l:bufnr = bufnr('%')
+    let l:target = join(getbufline(l:bufnr, l:fix.line, l:end_line), "\n")
+    let l:result = gramaculate#_apply_fix_to_line(l:target, l:fix.original, l:fix.fix)
+    let l:new_lines = split(l:result, "\n", 1)
+
+    call deletebufline(l:bufnr, l:fix.line, l:end_line)
+    call appendbufline(l:bufnr, l:fix.line - 1, l:new_lines)
+
+    call remove(s:current_fixes, l:i)
+    call s:PostApply(s:source_bufnr)
+    return
   endfor
 
   echo 'Gramaculate: no error at cursor position.'
@@ -323,7 +366,11 @@ endfunction
 
 " Public for testing
 function! gramaculate#_apply_fix_to_line(line, original, fix)
-  return substitute(a:line, '\V' . escape(a:original, '\'), a:fix, '')
+  let l:pos = stridx(a:line, a:original)
+  if l:pos < 0
+    return a:line
+  endif
+  return strpart(a:line, 0, l:pos) . a:fix . strpart(a:line, l:pos + len(a:original))
 endfunction
 
 " Return [byte_offset, byte_length] of the changed portion within a:original.
@@ -356,19 +403,50 @@ function! s:AddHighlights(source_bufnr, fixes)
     return
   endif
   for l:fix in a:fixes
-    let l:line_text = getbufline(a:source_bufnr, l:fix.line)
-    if empty(l:line_text)
-      continue
+    let l:orig_lines = split(l:fix.original, "\n", 1)
+    if len(l:orig_lines) <= 1
+      " Single-line error
+      let l:line_text = getbufline(a:source_bufnr, l:fix.line)
+      if empty(l:line_text)
+        continue
+      endif
+      let l:col = stridx(l:line_text[0], l:fix.original) + 1
+      if l:col <= 0
+        continue
+      endif
+      let [l:offset, l:hlen] = gramaculate#_changed_span(l:fix.original, l:fix.fix)
+      let l:id = matchaddpos('GramaculateError',
+        \ [[l:fix.line, l:col + l:offset, l:hlen]],
+        \ 10, -1, {'window': l:win})
+      call add(s:match_ids, [l:id, l:win])
+    else
+      " Multi-line error: highlight original text across all spanned lines
+      let l:positions = []
+      for l:i in range(len(l:orig_lines))
+        let l:lnum = l:fix.line + l:i
+        let l:part = l:orig_lines[l:i]
+        if empty(l:part)
+          continue
+        endif
+        let l:line_text = getbufline(a:source_bufnr, l:lnum)
+        if empty(l:line_text)
+          continue
+        endif
+        let l:col = stridx(l:line_text[0], l:part) + 1
+        if l:col <= 0
+          continue
+        endif
+        call add(l:positions, [l:lnum, l:col, len(l:part)])
+      endfor
+      " matchaddpos supports at most 8 positions per call
+      while !empty(l:positions)
+        let l:batch = remove(l:positions, 0, min([7, len(l:positions) - 1]))
+        let l:id = matchaddpos('GramaculateError',
+          \ l:batch,
+          \ 10, -1, {'window': l:win})
+        call add(s:match_ids, [l:id, l:win])
+      endwhile
     endif
-    let l:col = stridx(l:line_text[0], l:fix.original) + 1
-    if l:col <= 0
-      continue
-    endif
-    let [l:offset, l:hlen] = gramaculate#_changed_span(l:fix.original, l:fix.fix)
-    let l:id = matchaddpos('GramaculateError',
-      \ [[l:fix.line, l:col + l:offset, l:hlen]],
-      \ 10, -1, {'window': l:win})
-    call add(s:match_ids, [l:id, l:win])
   endfor
   " Add <leader>cg to the source buffer
   let l:cur_win = win_getid()
