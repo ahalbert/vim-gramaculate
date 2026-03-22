@@ -1,7 +1,10 @@
 :Gramaculate	gramaculate.txt	/*:Gramaculate*
 g:gramaculate_api_key	gramaculate.txt	/*g:gramaculate_api_key*
+g:gramaculate_aws_profile	gramaculate.txt	/*g:gramaculate_aws_profile*
+g:gramaculate_map_apply	gramaculate.txt	/*g:gramaculate_map_apply*
 g:gramaculate_model	gramaculate.txt	/*g:gramaculate_model*
 g:gramaculate_url	gramaculate.txt	/*g:gramaculate_url*
+gramaculate-bedrock	gramaculate.txt	/*gramaculate-bedrock*
 gramaculate-claude	gramaculate.txt	/*gramaculate-claude*
 gramaculate-configuration	gramaculate.txt	/*gramaculate-configuration*
 gramaculate-contents	gramaculate.txt	/*gramaculate-contents*
